@@ -368,6 +368,8 @@ def main() -> int:
     print("[7/7] Writing JSON + SVG")
     t0 = time.time()
     manual_pose = _parse_pose(args.start_pose)
+
+    # Initial guess for start_pose (overridden below using the actual route).
     if manual_pose is not None:
         start_pose = manual_pose
     elif args.start_mode == "default":
@@ -392,6 +394,39 @@ def main() -> int:
         start_pose=start_pose,
         start_bonus=start_bonus,
     )
+
+    # Override start_pose using the actual first lanelet of the route (so the
+    # red dot in the SVG matches where the path begins). Skip when the user
+    # passed a manual pose explicitly.
+    if manual_pose is None and plan.lanelet_sequence:
+        first_lid = plan.lanelet_sequence[0]
+        first_l = lanelets.get(first_lid)
+        if first_l is not None and first_l.centerline.shape[0] >= 2:
+            cl = first_l.centerline
+            # Pick which end is the actual route-flow start by comparing to the
+            # next distinct lanelet (handles cases where OSM order is reversed).
+            next_lid = None
+            for s in plan.lanelet_sequence[1:]:
+                if s != first_lid:
+                    next_lid = s
+                    break
+            forward = True
+            if next_lid and next_lid in lanelets:
+                next_cl = lanelets[next_lid].centerline
+                d_start = float(np.min(np.linalg.norm(next_cl - cl[0], axis=1)))
+                d_end = float(np.min(np.linalg.norm(next_cl - cl[-1], axis=1)))
+                forward = d_end <= d_start
+            if forward:
+                sx, sy = float(cl[0, 0]), float(cl[0, 1])
+                dx = float(cl[1, 0] - cl[0, 0])
+                dy = float(cl[1, 1] - cl[0, 1])
+            else:
+                sx, sy = float(cl[-1, 0]), float(cl[-1, 1])
+                dx = float(cl[-2, 0] - cl[-1, 0])
+                dy = float(cl[-2, 1] - cl[-1, 1])
+            syaw = _math.atan2(dy, dx)
+            start_pose = (sx, sy, syaw)
+            plan.start_pose = start_pose
     write_plan_json(plan, out_json_path)
     render_plan_svg(
         plan, lanelets, waypoints, start_area, out_svg_path,

@@ -73,20 +73,34 @@ def render_plan_svg(
     #   orange  -> default highway (is_highway=True but no explicit penalty)
     #   green   -> normal urban lanelet
     pen_map = lanelet_penalties or {}
-    route_lids = set(plan.lanelet_sequence)
+
+    # Build a lookup of route flow: for each lanelet ID in the route, the next
+    # distinct lanelet ID (used to orient the arrow regardless of how the
+    # centerline was parsed). For the last lanelet, fall back to predecessor.
+    seq = list(plan.lanelet_sequence)
+    next_in_route: dict[str, str] = {}
+    prev_in_route: dict[str, str] = {}
+    for i in range(len(seq) - 1):
+        a, b = seq[i], seq[i + 1]
+        if a != b and a not in next_in_route:
+            next_in_route[a] = b
+        if a != b and b not in prev_in_route:
+            prev_in_route[b] = a
+
+    route_lids = set(seq)
     for lid in route_lids:
         l = lanelets.get(lid)
         if l is None:
             continue
         pen = float(pen_map.get(lid, 0.0))
         if pen > 1e-6:
-            color = "#ffd400"          # yellow — penalized
+            color = "#ffd400"
         elif pen < -1e-6:
-            color = "#b366ff"          # violet — rewarded
+            color = "#b366ff"
         elif l.is_highway:
-            color = "#ffaa00"          # orange — highway, no extra weight
+            color = "#ffaa00"
         else:
-            color = "#22cc44"          # green — normal
+            color = "#22cc44"
         flag = (
             "penalized" if pen > 1e-6 else
             "rewarded" if pen < -1e-6 else
@@ -95,11 +109,39 @@ def render_plan_svg(
         line, = ax.plot(l.centerline[:, 0], l.centerline[:, 1], color=color, linewidth=1.8, zorder=2)
         line.set_gid(f"lanelet-{lid}")
         line.set_label(f"lanelet {lid} | flag={flag} | penalty={pen:+.2f}s | length={l.length_m:.2f}m")
-        if l.centerline.shape[0] >= 2:
-            mid_idx = l.centerline.shape[0] // 2
-            if mid_idx + 1 < l.centerline.shape[0]:
-                p0 = l.centerline[mid_idx]
-                p1 = l.centerline[mid_idx + 1]
+
+        # Arrow oriented along the ROUTE FLOW (not the parsed centerline direction).
+        # We look at which endpoint of this lanelet is closer to the next (or previous)
+        # lanelet in the route. The arrow then points from the far end toward that one.
+        cl = l.centerline
+        if cl.shape[0] >= 2:
+            cl_start = cl[0]
+            cl_end = cl[-1]
+            neighbor_lid = next_in_route.get(lid) or prev_in_route.get(lid)
+            forward = True  # default: use parsed centerline direction
+            if neighbor_lid and neighbor_lid in lanelets:
+                neighbor_pts = lanelets[neighbor_lid].centerline
+                # Closest distance from each of our endpoints to ANY point of the neighbor.
+                d_start = float(np.min(np.linalg.norm(neighbor_pts - cl_start, axis=1)))
+                d_end = float(np.min(np.linalg.norm(neighbor_pts - cl_end, axis=1)))
+                is_successor = lid in next_in_route  # neighbor is AFTER current
+                if is_successor:
+                    # Flow is current -> neighbor. The exit endpoint of current is
+                    # closer to neighbor: smaller d_end -> end is exit -> forward.
+                    forward = d_end <= d_start
+                else:
+                    # Flow is neighbor -> current. The entry endpoint of current is
+                    # closer to neighbor: smaller d_start -> start is entry -> forward.
+                    forward = d_start <= d_end
+
+            mid_idx = cl.shape[0] // 2
+            if mid_idx + 1 < cl.shape[0]:
+                if forward:
+                    p0 = cl[mid_idx]
+                    p1 = cl[mid_idx + 1]
+                else:
+                    p0 = cl[mid_idx]
+                    p1 = cl[mid_idx - 1] if mid_idx > 0 else cl[0]
                 dx = p1[0] - p0[0]
                 dy = p1[1] - p0[1]
                 norm = np.hypot(dx, dy)
@@ -167,15 +209,13 @@ def render_plan_svg(
                 color="white", fontsize=9, ha="center", va="center", weight="bold", zorder=6,
             )
 
-    # Start pose arrow
-    sx, sy, syaw = plan.start_pose
-    arrow_len = 0.3
+    # Start pose: red dot (no heading arrow — direction shown by route arrows).
+    from matplotlib.patches import Circle
+    sx, sy, _syaw = plan.start_pose
     ax.add_patch(
-        FancyArrow(
-            sx, sy,
-            arrow_len * np.cos(syaw), arrow_len * np.sin(syaw),
-            width=0.05, head_width=0.18, head_length=0.18,
-            facecolor="#ff3333", edgecolor="#ff5555", linewidth=1.2, zorder=7,
+        Circle(
+            (sx, sy), radius=0.12,
+            facecolor="#ff3333", edgecolor="#ffffff", linewidth=1.5, zorder=8,
         )
     )
 
