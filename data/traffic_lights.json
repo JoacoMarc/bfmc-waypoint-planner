@@ -1,0 +1,20 @@
+{
+  "_comment": "Probabilistic traffic-light model. For each listed lanelet, the cost matrix replaces the literal lanelet_penalties value with E[wait] computed from the cycle. BFMC cycle: green=5s, yellow=3s, red=3s, so E[wait] ≈ 1.636 s instead of the 5 s literal.",
+  "default_cycle": {"green_s": 5.0, "yellow_s": 3.0, "red_s": 3.0},
+  "zones": {
+    "G": {
+      "_description": "Traffic-light intersection (zone G in the BFMC course).",
+      "cycle": {"green_s": 5.0, "yellow_s": 3.0, "red_s": 3.0},
+      "lanelets": [
+        "740", "745", "748", "828", "835", "838", "855", "858",
+        "1013", "1030", "1033", "1043", "1048", "1060", "1063",
+        "1080", "1084", "1086", "1094", "1097"
+      ]
+    },
+    "startline": {
+      "_description": "Default start position 995 has a traffic light.",
+      "cycle": {"green_s": 5.0, "yellow_s": 3.0, "red_s": 3.0},
+      "lanelets": ["995"]
+    }
+  }
+}

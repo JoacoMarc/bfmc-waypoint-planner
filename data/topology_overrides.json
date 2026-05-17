@@ -1,0 +1,14 @@
+{
+  "_comment": "Manual topology corrections for the BFMC OSM. Edit to add/remove successor edges where the automatic boundary-matching is incorrect. Predecessors are derived automatically from these. Use the lanelet relation IDs as keys.",
+  "add_successors": {
+    "888": ["868"],
+    "868": ["872", "877"],
+    "938": ["868"],
+    "457": ["460"],
+    "762": ["765"],
+    "872": ["665"]
+  },
+  "remove_successors": {
+    "888": ["872"]
+  }
+}

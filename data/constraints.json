@@ -1,0 +1,7 @@
+{
+  "_comment": "BFMC order constraints. Edit to force a specific first waypoint (BFMC rule when starting random), prohibit waypoints, or impose A-before-B pairs. Leave the file empty (or remove the keys) for an unconstrained solver run.",
+  "must_visit_first": null,
+  "must_visit": [],
+  "forbidden": [],
+  "before_after": []
+}
